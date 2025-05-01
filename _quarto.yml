@@ -1,0 +1,8 @@
+project:
+  title: "ESS-330-Final-Project"
+  output-dir: docs
+  type: website
+
+format:
+  html:
+    self-contained: true

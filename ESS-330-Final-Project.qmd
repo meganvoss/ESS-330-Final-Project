@@ -1,0 +1,14 @@
+---
+title: "ESS-330-Final-Project: Impact of Fire Severity on Vegetation Recovery in Oregon: A Comparative Analysis Using Remote Sensing and Ecological Data"
+authors:
+  - name: Megan Voss
+    affiliation: Colorado State University
+  - name: Erica Mortland
+    affiliation: Colorado State University
+format:
+  html:
+    self-contained: true
+execute:
+  echo: true
+---
+
