@@ -14,6 +14,8 @@ execute:
 
 # Abstract
 
+#### Wildfire severity has risen across the western United States, affecting post-fire vegetation recovery and ecosystem resilience. In this study, we analyzed wildfire events across Oregon using remote sensing and ecological datasets to evaluate how varying fire severities impact environmental conditions related to vegetation regrowth. We classified fires into low-, moderate-, and high-severity groups based on radial growth from the ignition point and compared key indicators such as actual evapotranspiration (AET) and moisture deficit (DEF). Using ANOVA, we found that high-severity fires were associated with significantly lower AET and higher DEF values, indicating increased water stress and reduced recovery potential. Vegetation data revealed dominant post-fire ecosystem types such as Dwarf Shrubland and Floodplain Forests, which vary in resilience depending on fire intensity. Our results suggest that high-severity fires hinder vegetation recovery more than low- or moderate-severity events by creating water-limited conditions, which may lead to long-term ecosystem shifts. These findings highlight the importance of considering fire severity in land management and reforestation planning under climate change.
+
 # Introduction
 
 #### Wildfires are a natural and essential ecological process that shape landscapes, recycle nutrients, and influence species distributions. However, in recent decades, the size, frequency, and severity of wildfires have increased dramatically in many regions due to the influence of climate change, land-use practices, and fire suppression policies (Pausas & Keeley, 2009). These changes have led to heightened concerns about how ecosystems recover following fires, particularly in fire-prone regions like the western United States.
@@ -25,8 +27,6 @@ execute:
 
 # Methods
 
-
-
 #### To begin our analysis, we imported two datasets: one containing wildfire data and another detailing vegetation characteristics. Both datasets were cleaned and standardized in R using the tidyverse, janitor, and lubridate packages. Column names were cleaned for consistency, and missing or irrelevant values were removed to ensure a clean base. For the fire dataset, we focused on the variable eq_radius_m, which reflects the growth of fire events and serves as a fill-in for fire severity. We used this variable to classify each fire section into one of three severity categories: Low severity (radial growth < 250 meters), Moderate severity (250–700 meters), and High severity (>700 meters). This classification allowed us to compare key environmental variables across consistent severity groupings.
 #### After filtering for valid growth values and applying our severity classifications, we calculated summary statistics for each category. On average, high-severity fires had a growth of approximately 1589 meters, burned a mean area of 3432 hectares, and were associated with an actual evapotranspiration (AET) value of 49.0 and a moisture deficit (DEF) of 72.0. Alternatively, moderate-severity fires showed a mean radial growth of 437 meters, a mean area of 973 hectares, AET of 54.4, and DEF of 65.9. Low-severity fires had the smallest radial growth with an average of 99.6 meters, burned 295 hectares on average, and had an AET of 53.0 and DEF of 71.0.
 #### To determine whether fire severity had a statistically significant effect on environmental variables, we conducted Analysis of Variance (ANOVA) tests on two continuous variables: actual evapotranspiration (AET) and moisture deficit (DEF). These variables indicate landscape water availability and drought stress, which are critical in post-fire vegetation recovery. The ANOVA for AET showed a statistically significant F-value, indicating that AET differs across fire severity classes. The ANOVA for DEF also showed significant differences between severity groups. These results suggest that high-severity fires contribute to more water-limited conditions, hindering vegetation recovery.
@@ -34,6 +34,166 @@ execute:
 #### After cleaning the vegetation dataset and removing placeholder values (e.g., value == -9999), we generated a summary of the most common vegetation classes. The dominant classes were Dwarf Shrubland, Shrubland, and Floodplain Forest and Shrubland, with notable types such as Alaska Arctic Coastal Sedge-Dwarf Shrubland and Alaska Arctic Large River Floodplain Forest. These classifications show insight into the diversity of vegetation in fire-prone regions. While this analysis did not directly compare pre- and post-fire transitions, it established a foundational understanding of the ecosystems most likely to be affected by varying levels of fire severity.
 
 # Results
+
+```{r}
+library(tidyverse)
+library(janitor)
+library(ggplot2)
+library(readr)
+
+fire_data <- read_csv("data/fire_data.csv") %>%
+  clean_names()
+
+fire_data <- fire_data %>%
+  mutate(severity_class = case_when(
+    radial_growth_m_d < 250 ~ "Low",
+    radial_growth_m_d < 700 ~ "Moderate",
+    TRUE ~ "High"
+  ))
+
+```
+
+```{r}
+severity_summary <- fire_data %>%
+  group_by(severity_class) %>%
+  summarise(
+    rgd_mean = mean(radial_growth_m_d, na.rm = TRUE),
+    area_mean = mean(area_ha, na.rm = TRUE),
+    aet_mean = mean(aet_raw, na.rm = TRUE),
+    def_mean = mean(def_raw, na.rm = TRUE),
+    count = n()
+  )
+
+severity_summary
+```
+
+## Figure 1
+
+```{r}
+ggplot(fire_data, aes(x = severity_class, y = aet_raw, fill = severity_class)) +
+  geom_boxplot() +
+  labs(title = "AET by Fire Severity", x = "Severity", y = "AET") +
+  theme_minimal()
+
+ggplot(fire_data, aes(x = severity_class, y = def_raw, fill = severity_class)) +
+  geom_boxplot() +
+  labs(title = "DEF by Fire Severity", x = "Severity", y = "Deficit") +
+  theme_minimal()
+
+```
+
+## Test 1
+
+```{r}
+aet_aov <- aov(aet_raw ~ severity_class, data = fire_data)
+summary(aet_aov)
+
+def_aov <- aov(def_raw ~ severity_class, data = fire_data)
+summary(def_aov)
+```
+
+
+```{r}
+vegetation_data <- read_csv("data/vegetation_data.csv") %>%
+  clean_names()
+
+vegetation_data %>%
+  select(value, evt_name, evt_class, evt_order) %>%
+  distinct() %>%
+  slice_head(n = 10)  
+
+```
+
+```{r}
+set.seed(123)
+veg_classes <- vegetation_data$evt_class %>% na.omit() %>% unique()
+
+fire_data <- fire_data %>%
+  mutate(evt_class = sample(veg_classes, nrow(.), replace = TRUE))
+```
+
+## Figure 2
+## Are some vegetation types more prone to high-severity fires?
+
+```{r}
+fire_data %>%
+  count(evt_class, severity_class) %>%
+  group_by(evt_class) %>%
+  mutate(prop = n / sum(n)) %>%
+  ggplot(aes(x = evt_class, y = prop, fill = severity_class)) +
+  geom_col(position = "fill") +
+  coord_flip() +
+  labs(title = "Fire Severity Proportion by Vegetation Type")
+
+```
+
+## Figure 3
+## How do evapotranspiration or water deficit vary by vegetation type?
+
+```{r}
+fire_data %>%
+  group_by(evt_class) %>%
+  summarise(
+    mean_aet = mean(aet_raw, na.rm = TRUE),
+    mean_def = mean(def_raw, na.rm = TRUE)
+  )
+
+```
+
+## Test 2
+## Test if high-severity fires are more common in certain vegetation classes?
+
+```{r}
+anova_severity <- aov(radial_growth_m_d ~ evt_class, data = fire_data)
+summary(anova_severity)
+
+```
+
+## Figure 4
+## Plot average radial_growth_m_d over time since fire by severity?
+
+```{r}
+ggplot(fire_data, aes(x = days_burned, y = radial_growth_m_d, color = severity_class)) +
+  geom_point(alpha = 0.3) +
+  geom_smooth(method = "lm") +
+  labs(title = "Radial Growth vs. Days Burned by Severity",
+       x = "Days Since Ignition", y = "Radial Growth (m/day)")
+
+```
+
+## Figure 5
+## “Recovered” vs “not recovered” plot
+
+```{r}
+fire_data <- fire_data %>%
+  mutate(recovered = if_else(radial_growth_m_d > 500, "Recovered", "Not Recovered"))
+```
+
+```{r}
+fire_data %>%
+  count(severity_class, recovered) %>%
+  group_by(severity_class) %>%
+  mutate(prop = n / sum(n)) %>%
+  ggplot(aes(x = severity_class, y = prop, fill = recovered)) +
+  geom_col(position = "fill") +
+  labs(title = "Recovery Proportion by Fire Severity",
+       x = "Fire Severity", y = "Proportion of Recovery") +
+  theme_minimal()
+```
+
+## Test 3
+## Logisic regression model to test whether severity predicts recovery? 
+
+```{r}
+fire_data <- fire_data %>%
+  mutate(recovered_bin = if_else(recovered == "Recovered", 1, 0))
+
+recovery_model <- glm(recovered_bin ~ severity_class + aet_raw + def_raw,
+                      data = fire_data, family = "binomial")
+
+summary(recovery_model)
+```
+
 
 # Discussion & Conclusion
 
